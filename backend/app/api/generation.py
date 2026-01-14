@@ -1,16 +1,17 @@
 import base64
-from fastapi import APIRouter, Depends, HTTPException, Response
+import io
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.database import get_db
 from app.models import User, Subscription, Plan
 from app.core.config import settings
-import requests
-import io
+from huggingface_hub import InferenceClient
 
 router = APIRouter()
 
-API_URL = "https://router.huggingface.co/hf-inference/models/runwayml/stable-diffusion-v1-5"
+# Using FLUX.1-schnell as it is currently supported and working on Serverless API
+MODEL_ID = "black-forest-labs/FLUX.1-schnell"
 
 @router.post("/generate")
 async def generate_image(
@@ -34,18 +35,20 @@ async def generate_image(
     if sub.usage_count >= limit:
         raise HTTPException(status_code=403, detail="Usage limit exceeded for this plan")
 
-    # 3. Generate Image via HuggingFace API
-    headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
-    payload = {"inputs": prompt}
+    # 3. Generate Image via HuggingFace InferenceClient
+    client = InferenceClient(token=settings.HUGGINGFACE_API_KEY)
 
     try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
+        # returns a PIL Image
+        image = client.text_to_image(prompt, model=MODEL_ID)
         
-        if response.status_code != 200:
-             raise Exception(f"API Error: {response.text}")
+        # Convert PIL Image to Bytes
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format='JPEG')
+        img_byte_arr = img_byte_arr.getvalue()
 
         # Convert bytes to base64
-        img_base64 = base64.b64encode(response.content).decode("utf-8")
+        img_base64 = base64.b64encode(img_byte_arr).decode("utf-8")
         
         # 4. Increment Usage only on success
         sub.usage_count += 1
