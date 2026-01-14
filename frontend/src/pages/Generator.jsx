@@ -22,13 +22,14 @@ export default function Generator() {
             const res = await api.post('/api/generate',
                 null,
                 {
-                    params: { prompt },
-                    responseType: 'blob'
+                    params: { prompt }
                 }
             );
 
-            // Create URL for the image blob
-            const imageUrl = URL.createObjectURL(res.data);
+            // Handle JSON response with Base64 image
+            const { image_base64, format } = res.data;
+            const imageUrl = `data:image/${format};base64,${image_base64}`;
+
             setHistory([...newHistory, { type: 'ai', content: imageUrl }]);
         } catch (err) {
             console.error(err);
@@ -71,10 +72,10 @@ export default function Generator() {
                 {history.map((msg, idx) => (
                     <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-xl rounded-lg p-4 shadow-sm ${msg.type === 'user'
-                                ? 'bg-indigo-600 text-white'
-                                : msg.type === 'error'
-                                    ? 'bg-red-50 text-red-600 border border-red-200'
-                                    : 'bg-white border border-gray-100'
+                            ? 'bg-indigo-600 text-white'
+                            : msg.type === 'error'
+                                ? 'bg-red-50 text-red-600 border border-red-200'
+                                : 'bg-white border border-gray-100'
                             }`}>
                             {msg.type === 'ai' ? (
                                 <img src={msg.content} alt="Generated" className="rounded-lg w-full" />
@@ -112,8 +113,8 @@ export default function Generator() {
                         type="submit"
                         disabled={generating || usage >= limit}
                         className={`px-6 py-2 rounded-lg font-medium transition-colors ${generating || usage >= limit
-                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
                             }`}
                     >
                         Generate
