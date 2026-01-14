@@ -1,4 +1,8 @@
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+# Environment files
 .env
-backend/.env
-frontend/.env
 *.env
