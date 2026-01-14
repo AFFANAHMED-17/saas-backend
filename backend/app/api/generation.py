@@ -1,0 +1,56 @@
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy.orm import Session
+from app.api import deps
+from app.database import get_db
+from app.models import User, Subscription, Plan
+from app.core.config import settings
+import requests
+import io
+
+router = APIRouter()
+
+API_URL = "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"
+
+@router.post("/generate")
+async def generate_image(
+    prompt: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    # 1. Check if user has an active subscription
+    sub = db.query(Subscription).filter(
+        Subscription.user_id == current_user.id,
+        Subscription.status == "active"
+    ).first()
+    
+    if not sub:
+        raise HTTPException(status_code=403, detail="Active subscription required")
+    
+    # 2. Check usage limits
+    plan = db.query(Plan).filter(Plan.id == sub.plan_id).first()
+    limit = plan.request_limit if plan.request_limit else 1000
+    
+    if sub.usage_count >= limit:
+        raise HTTPException(status_code=403, detail="Usage limit exceeded for this plan")
+
+    # 3. Generate Image via HuggingFace API
+    headers = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}"}
+    payload = {"inputs": prompt}
+
+    try:
+        response = requests.post(API_URL, headers=headers, json=payload)
+        
+        if response.status_code != 200:
+             raise Exception(f"API Error: {response.text}")
+
+        img_byte_arr = response.content
+
+    except Exception as e:
+        print(f"Generation Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+
+    # 4. Increment Usage
+    sub.usage_count += 1
+    db.commit()
+    
+    return Response(content=img_byte_arr, media_type="image/jpeg")
