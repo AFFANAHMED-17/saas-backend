@@ -1,3 +1,4 @@
+import base64
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from app.api import deps
@@ -9,7 +10,7 @@ import io
 
 router = APIRouter()
 
-API_URL = "https://router.huggingface.co/models/runwayml/stable-diffusion-v1-5"
+API_URL = "https://router.huggingface.co/hf-inference/models/runwayml/stable-diffusion-v1-5"
 
 @router.post("/generate")
 async def generate_image(
@@ -38,19 +39,23 @@ async def generate_image(
     payload = {"inputs": prompt}
 
     try:
-        response = requests.post(API_URL, headers=headers, json=payload)
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
         
         if response.status_code != 200:
              raise Exception(f"API Error: {response.text}")
 
-        img_byte_arr = response.content
+        # Convert bytes to base64
+        img_base64 = base64.b64encode(response.content).decode("utf-8")
+        
+        # 4. Increment Usage only on success
+        sub.usage_count += 1
+        db.commit()
+        
+        return {
+            "image_base64": img_base64,
+            "format": "jpeg"
+        }
 
     except Exception as e:
         print(f"Generation Error: {e}")
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
-
-    # 4. Increment Usage
-    sub.usage_count += 1
-    db.commit()
-    
-    return Response(content=img_byte_arr, media_type="image/jpeg")
