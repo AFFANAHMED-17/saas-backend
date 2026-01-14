@@ -4,6 +4,7 @@ from app.api import auth, subscriptions, invoices, admin, generation
 from app.database import engine, Base
 from app.worker import start_scheduler
 from contextlib import asynccontextmanager
+from app.core.config import settings
 
 Base.metadata.create_all(bind=engine)
 
