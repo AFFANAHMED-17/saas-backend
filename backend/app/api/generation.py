@@ -9,7 +9,7 @@ import io
 
 router = APIRouter()
 
-API_URL = "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"
+API_URL = "https://router.huggingface.co/models/runwayml/stable-diffusion-v1-5"
 
 @router.post("/generate")
 async def generate_image(
